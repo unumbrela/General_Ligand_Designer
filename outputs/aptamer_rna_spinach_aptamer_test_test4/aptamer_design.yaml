@@ -1,0 +1,11 @@
+version: 1
+sequences:
+- rna:
+    id:
+    - A
+    sequence: GAUCCUUAAAAAUUUAAACCAAAACGCAUAUUAACCUAAAAGUGGUCC
+    msa: empty
+- ligand:
+    id:
+    - B
+    smiles: CC1=C(C2=C(N1)C=CC(=C2)O)C=C3C(=O)NC(=O)N3

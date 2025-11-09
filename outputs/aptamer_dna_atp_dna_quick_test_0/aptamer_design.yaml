@@ -1,0 +1,11 @@
+version: 1
+sequences:
+- dna:
+    id:
+    - A
+    sequence: GGAATGTAAACCGACGGTTAATTTTCC
+    msa: empty
+- ligand:
+    id:
+    - B
+    smiles: C1=NC2=C(C(=N1)N)N=CN2C3C(C(C(O3)COP(=O)(O)OP(=O)(O)OP(=O)(O)O)O)O
