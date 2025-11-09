@@ -33,54 +33,65 @@ class AptamerDesignConfig:
     适配体设计配置类
     动态管理token索引，避免硬编码问题
     """
-    
+
     def __init__(self, aptamer_type='RNA', aptamer_chain='A', target_chains=['B'], target_type='protein'):
         self.aptamer_type = aptamer_type.upper()
         self.aptamer_chain = aptamer_chain
         self.target_chains = target_chains if isinstance(target_chains, list) else [target_chains]
-        self.target_type = target_type  # 'protein' 或 'ligand'
+        self.target_type = target_type
         
-        # 动态生成允许的token (核心：避免硬编码)
+        # 🔧 修复：分离允许token和优化token
         if self.aptamer_type == 'RNA':
-            self.allowed_token_names = ['A', 'G', 'C', 'U', 'N']
-            self.nucleotide_alphabet = ['A', 'G', 'C', 'U', 'N']  # 显示用
-            self.nucleotide_alphabet_no_n = ['A', 'G', 'C', 'U']  # 用于序列生成
+            # 用于显示和解析的完整字母表
+            self.nucleotide_alphabet = ['A', 'G', 'C', 'U', 'N']
+            # 用于初始化的字母表（不含N）
+            self.nucleotide_alphabet_no_n = ['A', 'G', 'C', 'U']
+            # ✅ 只允许优化确定的核苷酸（不含N）
+            optimization_tokens_names = ['A', 'G', 'C', 'U']  # 不含N！
+            all_tokens_names = ['A', 'G', 'C', 'U', 'N']  # 用于解析
+            
         elif self.aptamer_type == 'DNA':
-            self.allowed_token_names = ['DA', 'DG', 'DC', 'DT', 'DN']
-            self.nucleotide_alphabet = ['A', 'G', 'C', 'T', 'N']  # 显示用T
+            self.nucleotide_alphabet = ['A', 'G', 'C', 'T', 'N']
             self.nucleotide_alphabet_no_n = ['A', 'G', 'C', 'T']
+            # ✅ DNA也只允许确定的核苷酸
+            optimization_tokens_names = ['DA', 'DG', 'DC', 'DT']  # 不含DN！
+            all_tokens_names = ['DA', 'DG', 'DC', 'DT', 'DN']
         else:
             raise ValueError(f"Unsupported aptamer type: {aptamer_type}")
         
-        # 动态获取token索引 (替代硬编码) - 论文的核心思想
+        # 动态获取token索引
         try:
-            self.allowed_tokens = [const.token_ids[token] for token in self.allowed_token_names]
+            # ✅ 允许优化的tokens（4个确定核苷酸）
+            self.allowed_tokens = [const.token_ids[token] for token in optimization_tokens_names]
+            # 用于解析完整序列的tokens（包含N）
+            self.all_tokens = [const.token_ids[token] for token in all_tokens_names]
         except KeyError as e:
-            raise RuntimeError(f"Token {e} not found in const.token_ids. Available tokens: {list(const.token_ids.keys())}")
+            raise RuntimeError(f"Token {e} not found in const.token_ids")
         
-        # 生成禁止的token列表 (所有非核酸token)
-        all_tokens = set(range(len(const.tokens)))
-        self.forbidden_tokens = list(all_tokens - set(self.allowed_tokens))
+        # ✅ 禁止所有非确定核苷酸的token（包括N！）
+        all_possible_tokens = set(range(len(const.tokens)))
+        self.forbidden_tokens = list(all_possible_tokens - set(self.allowed_tokens))
         
-        # Token范围用于序列历史记录
-        self.token_start = min(self.allowed_tokens)
-        self.token_end = max(self.allowed_tokens) + 1
-        self.num_tokens = len(self.allowed_tokens)  # 5 for RNA/DNA (including N)
+        # Token范围
+        self.token_start = min(self.all_tokens)
+        self.token_end = max(self.all_tokens) + 1
+        self.num_tokens = len(self.allowed_tokens)  # 4（不含N）
         
-        # GC索引 (用于GC含量计算)
+        # GC索引
         if self.aptamer_type == 'RNA':
             self.g_idx = const.token_ids['G']
             self.c_idx = const.token_ids['C']
-        else:  # DNA
+            self.n_idx = const.token_ids['N']  # 用于检测
+        else:
             self.g_idx = const.token_ids['DG']
             self.c_idx = const.token_ids['DC']
+            self.n_idx = const.token_ids['DN']
         
-        print(f"✅ 适配体配置初始化完成:")
+        print(f"✅ 适配体配置初始化:")
         print(f"   类型: {self.aptamer_type}")
-        print(f"   允许的tokens: {self.allowed_token_names} → {self.allowed_tokens}")
-        print(f"   禁止的tokens数量: {len(self.forbidden_tokens)}")
-        print(f"   GC索引: G={self.g_idx}, C={self.c_idx}")
-
+        print(f"   允许优化: {optimization_tokens_names} → {self.allowed_tokens}")
+        print(f"   完整字母表: {all_tokens_names} → {self.all_tokens}")
+        print(f"   禁止优化数量: {len(self.forbidden_tokens)} (包括N)")
 
 def create_aptamer_yaml(target_protein_seq, aptamer_config, name="aptamer_design"):
     """
@@ -258,33 +269,26 @@ def apply_aptamer_gradient_mask(batch, aptamer_config, chain_to_number, device=N
         # 2. 禁止非核酸token的梯度 (动态，不硬编码)
         batch['res_type_logits'].grad[..., aptamer_config.forbidden_tokens] = 0
 
-
 def extract_aptamer_sequence(batch, aptamer_config, chain_to_number):
-    """
-    提取设计的适配体序列
-    将token索引转换为核酸字母
-    """
-    # 获取适配体链的掩码
+    """提取设计的适配体序列"""
     aptamer_mask = batch['entity_id'] == chain_to_number[aptamer_config.aptamer_chain]
     
     if not aptamer_mask.any():
         return ""
     
-    # 获取token索引
     aptamer_tokens = torch.argmax(batch['res_type'][aptamer_mask, :], dim=-1).detach().cpu().numpy()
     
-    # 转换为核酸序列
     sequence = []
     for token in aptamer_tokens:
-        if token in aptamer_config.allowed_tokens:
-            # 计算在字母表中的索引
+        # ✅ 使用完整的all_tokens进行解析（包含N）
+        if token in aptamer_config.all_tokens:
             try:
-                token_idx = aptamer_config.allowed_tokens.index(token)
+                token_idx = aptamer_config.all_tokens.index(token)
                 sequence.append(aptamer_config.nucleotide_alphabet[token_idx])
             except (ValueError, IndexError):
-                sequence.append('N')  # 未知核苷酸
+                sequence.append('N')
         else:
-            # 非法token，应该不会出现（梯度已被掩码）
+            # 如果出现非法token，记录为N
             sequence.append('N')
     
     return ''.join(sequence)
@@ -309,86 +313,50 @@ def record_aptamer_sequence_history(batch, aptamer_config, chain_to_number):
     
     return nucleotide_probs
 
-
 def calculate_aptamer_constraints(batch, aptamer_config, chain_to_number, target_type='protein'):
-    """
-    计算适配体特异性约束
-    论文中提到可以添加自定义损失函数，这里实现核酸特异性约束
-    
-    约束包括:
-    1. GC含量约束 (生物学标准: 40-60%)
-    2. 序列多样性约束 (避免poly-A/poly-G)
-    3. 碱基配对潜力 (鼓励二级结构)
-    """
+    """计算适配体特异性约束"""
     constraints = {}
     device = batch['res_type_logits'].device
     
-    # 获取适配体部分的序列概率
     aptamer_mask = batch['entity_id'] == chain_to_number[aptamer_config.aptamer_chain]
-    
     if not aptamer_mask.any():
         return {'gc_content_loss': torch.tensor(0.0, device=device)}
     
     sequence_probs = torch.softmax(batch['res_type_logits'][aptamer_mask, :], dim=-1)
     
-    # ===== 1. GC含量约束 =====
+    # ===== 新增：强烈惩罚N token =====
+    n_prob = sequence_probs[:, aptamer_config.n_idx].mean()
+    n_penalty = n_prob * 10.0  # 强惩罚因子
+    constraints['n_penalty_loss'] = n_penalty
+    
+    # GC含量约束（只计算确定的核苷酸）
     gc_content = sequence_probs[:, [aptamer_config.g_idx, aptamer_config.c_idx]].sum(dim=-1).mean()
+    gc_target = 0.5
+    gc_weight = 0.15 if target_type == 'ligand' else 0.1
+    constraints['gc_content_loss'] = ((gc_content - gc_target) ** 2) * gc_weight
     
-    # 生物学上合理的GC含量: 40-60%
-    if target_type == 'ligand':
-        gc_target = 0.5   # 小分子结合: 50% GC
-        gc_weight = 0.15
-    else:
-        gc_target = 0.5   # 蛋白质结合: 50% GC
-        gc_weight = 0.1
-    
-    # 使用平方损失 (论文中的标准损失形式)
-    gc_loss = ((gc_content - gc_target) ** 2) * gc_weight
-    constraints['gc_content_loss'] = gc_loss
-    
-    # ===== 2. 序列多样性约束 (避免单核苷酸重复) =====
-    # 计算核苷酸分布的熵
-    nucleotide_indices = aptamer_config.allowed_tokens[:4]  # 排除N
-    nucleotide_probs = sequence_probs[:, nucleotide_indices]
-    
-    # 计算全局核苷酸分布
+    # 序列多样性约束（只用确定的核苷酸）
+    nucleotide_probs = sequence_probs[:, aptamer_config.allowed_tokens]  # 只用4个确定核苷酸
     global_dist = nucleotide_probs.mean(dim=0)
-    
-    # 熵: H = -Σ p*log(p)
     entropy = -torch.sum(global_dist * torch.log(global_dist + 1e-8))
-    
-    # 最大熵 = log(4) ≈ 1.386 (均匀分布)
-    # 鼓励高熵 (多样性)
     max_entropy = torch.log(torch.tensor(4.0, device=device))
-    diversity_loss = (max_entropy - entropy) * 0.05  # 温和的约束
+    diversity_loss = (max_entropy - entropy) * 0.08  # 提高权重
     constraints['diversity_loss'] = diversity_loss
     
-    # ===== 3. 碱基配对潜力 (核酸特异性) =====
-    # RNA/DNA可以形成二级结构 (stem-loop)
-    # 简化版: 鼓励A-U/T和G-C配对的潜力
-    if aptamer_config.aptamer_type == 'RNA':
-        a_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['A'])
-        u_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['U'])
-        g_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['G'])
-        c_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['C'])
-    else:  # DNA
-        a_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['DA'])
-        u_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['DT'])  # DNA用T
-        g_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['DG'])
-        c_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['DC'])
+    # 同聚物惩罚（poly-X检测）
+    # 检测连续相同核苷酸的概率
+    poly_penalty = 0.0
+    for i in range(len(aptamer_config.allowed_tokens)):
+        # 计算每个位置选择同一核苷酸的概率
+        single_nt_prob = sequence_probs[:, aptamer_config.allowed_tokens[i]]
+        # 如果某个核苷酸在多个位置都是高概率，惩罚
+        if len(single_nt_prob) > 1:
+            poly_score = (single_nt_prob > 0.5).float().mean()  # 高概率位置比例
+            poly_penalty += poly_score ** 2
     
-    # 计算A/U(T)和G/C的平衡性
-    a_prob = nucleotide_probs[:, a_idx_local].mean()
-    u_prob = nucleotide_probs[:, u_idx_local].mean()
-    g_prob = nucleotide_probs[:, g_idx_local].mean()
-    c_prob = nucleotide_probs[:, c_idx_local].mean()
-    
-    # 鼓励配对平衡 (A≈U, G≈C)
-    pairing_balance = ((a_prob - u_prob) ** 2 + (g_prob - c_prob) ** 2) * 0.02
-    constraints['pairing_balance_loss'] = pairing_balance
+    constraints['poly_penalty_loss'] = poly_penalty * 0.05
     
     return constraints
-
 
 def create_aptamer_mask_and_chain_mask(batch, aptamer_config, chain_to_number):
     """

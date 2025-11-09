@@ -17,14 +17,14 @@ design_algorithm: 3stages
 pre_run: true             # 启用第0阶段预热
 learning_rate: 0.1
 learning_rate_pre: 0.2
-pre_iteration: 30
-soft_iteration: 75
-temp_iteration: 45
-hard_iteration: 5
+pre_iteration: 50
+soft_iteration: 100
+temp_iteration: 60
+hard_iteration: 10
 semi_greedy_steps: 2
 optimizer_type: SGD
 set_train: true
-distogram_only: true
+distogram_only: false
 
 # 结构约束参数
 inter_chain_cutoff: 20.0   # 链间接触距离阈值
