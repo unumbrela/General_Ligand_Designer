@@ -3,7 +3,7 @@ sequences:
 - rna:
     id:
     - A
-    sequence: NNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNNN
+    sequence: UGCUGAGAGGGAAGGUUAGGUUUGGGUUAAAGGCAGGCAU
     msa: empty
 - protein:
     id:

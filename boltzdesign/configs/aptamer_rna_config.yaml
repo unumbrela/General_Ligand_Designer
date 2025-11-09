@@ -1,43 +1,28 @@
-# RNA适配体设计专用配置文件
-# 角色互换: RNA作为设计对象，蛋白质作为结合目标
-
-# 适配体参数
-aptamer_type: RNA
-aptamer_chain: A          # 设计的适配体链ID
-target_chains: [B]        # 目标蛋白质链ID
-
-# 序列参数 
-length_min: 20           # 最小适配体长度
-length_max: 80           # 最大适配体长度
-gc_content_target: 0.5   # 目标GC含量
-gc_content_weight: 0.1   # GC含量约束权重
-
-# 设计算法参数
 design_algorithm: 3stages
-pre_run: true             # 启用第0阶段预热
-learning_rate: 0.08    # 0.1 → 0.08
-learning_rate_pre: 0.15  # 0.2 → 0.15
-pre_iteration: 60      # 50 → 60
-soft_iteration: 120    # 100 → 120
-temp_iteration: 80     # 60 → 80
-hard_iteration: 15     # 10 → 15
+pre_run: true
+learning_rate: 0.08        # 降低学习率
+learning_rate_pre: 0.15
+pre_iteration: 40          # 适中的迭代次数
+soft_iteration: 80
+temp_iteration: 50
+hard_iteration: 8
 semi_greedy_steps: 2
 optimizer_type: SGD
 set_train: true
-distogram_only: false
+distogram_only: false      # ✅ 改为false - 使用Confidence!
 
 # 结构约束参数
-inter_chain_cutoff: 20.0   # 链间接触距离阈值
-intra_chain_cutoff: 14.0   # 链内接触距离阈值
-num_inter_contacts: 2      # 最小链间接触数
-num_intra_contacts: 2      # 最小链内接触数
+inter_chain_cutoff: 18.0   # ✅ 降低cutoff，要求更紧密接触
+intra_chain_cutoff: 14.0
+num_inter_contacts: 3      # ✅ 增加接触数
+num_intra_contacts: 2
 optimize_contact_per_binder_pos: true
-pocket_conditioning: true
+pocket_conditioning: false  # ✅ 改为false
 
 # 其他参数
-recycling_steps: 1
+recycling_steps: 1         # ✅ 增加recycling
 use_temp: true
-disconnect_feats: true
+disconnect_feats: false    # ✅ 改为false，使用完整特征
 disconnect_pairformer: false
 mask_ligand: false
 non_protein_target: true
