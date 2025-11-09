@@ -1482,7 +1482,7 @@ def boltz_aptamer_hallucination(
 
     # 创建适配体专用掩码
     mask, chain_mask = create_aptamer_mask_and_chain_mask(batch, aptamer_config, chain_to_number)
-    mid_points = torch.linspace(aptamer_config.token_start, aptamer_config.token_end-1, 64).to(device)
+    #mid_points = torch.linspace(aptamer_config.token_start, aptamer_config.token_end-1, 64).to(device)
 
     def design(batch, iters=None, soft=0.0, e_soft=None, step=1.0, e_step=None,
                temp=1.0, e_temp=None, hard=0.0, e_hard=None, num_optimizing_binder_pos=1, 
@@ -1554,13 +1554,18 @@ def boltz_aptamer_hallucination(
             # 创建距离分箱 (bins)
             dgram_bins = torch.linspace(2.3125, 21.6875, 64).to(device)
             
-            # 计算链间接触损失 (适配体-蛋白质接触)
-            i_con_loss = get_con_loss(pdist, dgram_bins, num=num_inter_contacts, seqsep=0, 
-                                    num_pos=num_optimizing_binder_pos, cutoff=inter_chain_cutoff, 
-                                    binary=False, mask_1d=chain_mask, mask_1b=1-chain_mask)
+            # 计算链间接触损失 (适配体-蛋白质接触) 
+            i_con_loss = get_con_loss(
+                pdist, mid_pts,  # 使用mid_pts而不是dgram_bins
+                num=num_inter_contacts, seqsep=0, 
+                num_pos=num_optimizing_binder_pos, 
+                cutoff=inter_chain_cutoff, 
+                binary=False, 
+                mask_1d=chain_mask, mask_1b=1-chain_mask
+            )
             
             # 计算链内接触损失 (适配体内部结构)
-            con_loss = get_con_loss(pdist, dgram_bins, num=num_intra_contacts, seqsep=0, 
+            con_loss = get_con_loss(pdist, mid_pts, num=num_intra_contacts, seqsep=0, 
                                   num_pos=length, cutoff=intra_chain_cutoff, binary=False, 
                                   mask_1d=chain_mask, mask_1b=chain_mask)
             
@@ -1584,7 +1589,14 @@ def boltz_aptamer_hallucination(
                 traj_coords_list.append(traj_coords)
             if traj_plddt is not None:
                 traj_plddt_list.append(traj_plddt)
-            
+
+            # 添加置信度损失
+            if not pre_run and not distogram_only and 'plddt' in dict_out:
+                plddt_loss = get_plddt_loss(dict_out['plddt'], mask_1d=chain_mask)
+                total_loss = i_con_loss + con_loss + 0.1 * plddt_loss
+            else:
+                total_loss = i_con_loss + con_loss
+                    
             # 提取当前适配体序列
             current_sequence = extract_aptamer_sequence(batch, aptamer_config, chain_to_number)
             if prev_sequence is not None and len(current_sequence) > 0 and len(prev_sequence) > 0:

@@ -1,0 +1,127 @@
+示例命令：生成与小分子结合的蛋白质
+python boltzdesign.py --target_name 7v11 --target_type small_molecule --target_mols OQO --gpu_id 0 --design_samples 2 --suffix 1 
+
+Filtering high confidence designs...
+7v11_results_itr1_length132_model_0_1 length: 132 complex_plddt: 0.69 iptm: 0.44
+7v11_results_itr2_length145_model_0_1 length: 145 complex_plddt: 0.80 iptm: 0.72
+✅ 7v11_results_itr2_length145_model_0_1 copied
+7v11_results_itr2_length145_model_0_2 length: 145 complex_plddt: 0.81 iptm: 0.56
+✅ 7v11_results_itr2_length145_model_0_2 copied
+7v11_results_itr1_length132_model_0_2 length: 132 complex_plddt: 0.72 iptm: 0.57
+✅ 7v11_results_itr1_length132_model_0_2 copied
+LigandMPNN redesign step completed!
+
+示例命令：生成与小分子结合的DNA
+python boltzdesign1.py     --design_mode aptamer     --aptamer_type DNA     --target_ligand_smiles "CC1=CC2=C(C=C1C)N(C=N2)[C@@H]3[C@@H]([C@@H]([C@H](O3)CO)OP(=O)([O-])O[C@H](C)CNC(=O)CC[C@@]4([C@H]([C@@H]5[C@]6([C@@]([C@@H](C(=N6)/C(=C\7/[C@@]([C@@H](C(=N7)/C=C\8/C([C@@H](C(=N8)/C(=C4\[N-]5)/C)CCC(=O)N)(C)C)CCC(=O)N)(C)CC(=O)N)/C)CCC(=O)N)(C)CC(=O)N)C)CC(=O)N)C)O.[C-]#N.[Co+3]"     --target_name "debug_hbonds"     --aptamer_length 70     --save_structures True
+
+📁 结果保存在: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0
+🎯 最终适配体序列: GCCTGCCCCCCCCCCGATTTGACCANTNTTTTAATNACCTTTCGCCCCCCCCCACGCGCGCCGGGAGGGG
+📊 序列长度: 70
+📊 GC含量: 65.71%
+🧪 目标小分子SMILES: CC1=CC2=C(C=C1C)N(C=N2)[C@@H]3[C@@H]([C@@H]([C@H](O3)CO)OP(=O)([O-])O[C@H](C)CNC(=O)CC[C@@]4([C@H]([C@@H]5[C@]6([C@@]([C@@H](C(=N6)/C(=C\7/[C@@]([C@@H](C(=N7)/C=C\8/C([C@@H](C(=N8)/C(=C4\[N-]5)/C)CCC(=O)N)(C)C)CCC(=O)N)(C)CC(=O)N)/C)CCC(=O)N)(C)CC(=O)N)C)CC(=O)N)C)O.[C-]#N.[Co+3]
+🔗 小分子复杂度: 280 字符
+
+🏗️ 开始生成最终三维结构...
+🔬 运行适配体结构预测...
+📝 输入YAML: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/aptamer_design.yaml
+📁 输出目录: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/structures
+🚀 开始Boltz结构预测...
+✅ Boltz结构预测完成
+💾 找到CIF文件: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/aptamer_design_model_0.cif
+⚠️ PDB转换失败: No module named 'boltzdesign.utils'; 'boltzdesign' is not a package
+📊 找到置信度文件: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/confidence_aptamer_design_model_0.json
+📊 平均pLDDT: 0.27
+📁 信息文件已保存: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/structures/aptamer_dna_debug_hbonds_info.npz
+✅ 结构预测完成! 文件保存在: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/structures
+📁 CIF: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/aptamer_design_model_0.cif (116.2 KB)
+📁 CONFIDENCE: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/confidence_aptamer_design_model_0.json (0.6 KB)
+📁 INFO: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_dna_debug_hbonds_0/structures/aptamer_dna_debug_hbonds_info.npz (1.1 KB)
+📊 结构置信度 (pLDDT): 0.27
+❌ 结构质量: 低置信度
+
+示例命令：生成与蛋白质结合的RNA
+python boltzdesign1.py \
+  --design_mode aptamer \
+  --aptamer_type RNA \
+  --target_protein_seq "MKLLVVVGGVGSGKTTLLRQLAKEFG" \
+  --aptamer_length 40 \
+  --target_name test_protein \
+  --gpu_id 0 \
+  --pre_iteration 30 \
+  --soft_iteration 75 \
+  --temp_iteration 45 \
+  --hard_iteration 5
+
+  修改前
+  🎯 最终设计的RNA适配体序列: NNUNNUNCAUUAANNGGCGNNANCCUGGAGNUGNNNUANN
+🔬 序列长度: 40
+🧪 目标蛋白质序列: MKLLVVVGGVGSGKTTLLRQLAKEFG
+🔗 蛋白质长度: 26 氨基酸
+📊 GC含量: 27.50%
+📝 已更新YAML文件: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/aptamer_design.yaml
+🔬 开始生成3D结构...
+⚠️  结构预测过程中出现错误: 'Record' object has no attribute 'atoms'
+💡 序列设计已完成，但3D结构生成失败
+✅ 适配体设计完成!
+📁 结果保存在: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0
+🎯 最终适配体序列: NNUNNUNCAUUAANNGGCGNNANCCUGGAGNUGNNNUANN
+📊 序列长度: 40
+📊 GC含量: 27.50%
+🧪 目标蛋白质序列: MKLLVVVGGVGSGKTTLLRQLAKEFG
+🔗 蛋白质长度: 26 氨基酸
+
+🏗️ 开始生成最终三维结构...
+🔬 运行适配体结构预测...
+📝 输入YAML: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/aptamer_design.yaml
+📁 输出目录: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures
+🚀 开始Boltz结构预测...
+✅ Boltz结构预测完成
+💾 找到CIF文件: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/aptamer_design_model_0.cif
+⚠️ PDB转换失败: No module named 'boltzdesign.utils'; 'boltzdesign' is not a package
+📊 找到置信度文件: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/confidence_aptamer_design_model_0.json
+📊 平均pLDDT: 0.50
+📁 信息文件已保存: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/aptamer_rna_test_protein_info.npz
+✅ 结构预测完成! 文件保存在: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures
+📁 CIF: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/aptamer_design_model_0.cif (71.4 KB)
+📁 CONFIDENCE: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/confidence_aptamer_design_model_0.json (0.6 KB)
+📁 INFO: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/aptamer_rna_test_protein_info.npz (1.1 KB)
+📊 结构置信度 (pLDDT): 0.50
+❌ 结构质量: 低置信度
+
+
+修改后
+🎯 最终设计的RNA适配体序列: AGNUNUGAGCNGGGGGNUAGNNNCUNACUUAUGAGUANCU
+🔬 序列长度: 40
+🧪 目标蛋白质序列: MKLLVVVGGVGSGKTTLLRQLAKEFG
+🔗 蛋白质长度: 26 氨基酸
+📊 GC含量: 48.39%
+📝 已更新YAML文件: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/aptamer_design.yaml
+🔬 开始生成3D结构...
+⚠️  结构预测过程中出现错误: 'Record' object has no attribute 'atoms'
+💡 序列设计已完成，但3D结构生成失败
+✅ 适配体设计完成!
+📁 结果保存在: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0
+🎯 最终适配体序列: AGNUNUGAGCNGGGGGNUAGNNNCUNACUUAUGAGUANCU
+📊 序列长度: 40
+📊 GC含量: 48.39%
+🧪 目标蛋白质序列: MKLLVVVGGVGSGKTTLLRQLAKEFG
+🔗 蛋白质长度: 26 氨基酸
+
+🏗️ 开始生成最终三维结构...
+🔬 运行适配体结构预测...
+📝 输入YAML: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/aptamer_design.yaml
+📁 输出目录: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures
+🚀 开始Boltz结构预测...
+✅ Boltz结构预测完成
+💾 找到CIF文件: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/aptamer_design_model_0.cif
+⚠️ PDB转换失败: No module named 'boltzdesign.utils'; 'boltzdesign' is not a package
+📊 找到置信度文件: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/confidence_aptamer_design_model_0.json
+📊 平均pLDDT: 0.50
+📁 信息文件已保存: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/aptamer_rna_test_protein_info.npz
+✅ 结构预测完成! 文件保存在: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures
+📁 CIF: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/aptamer_design_model_0.cif (71.4 KB)
+📁 CONFIDENCE: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/boltz_results_aptamer_design/predictions/aptamer_design/confidence_aptamer_design_model_0.json (0.6 KB)
+📁 INFO: /home/zihao/Bio/boltz-for-RNA-DNA_origin/outputs/aptamer_rna_test_protein_0/structures/aptamer_rna_test_protein_info.npz (1.1 KB)
+📊 结构置信度 (pLDDT): 0.50
+❌ 结构质量: 低置信度
+(boltz_design) zihao@Z
