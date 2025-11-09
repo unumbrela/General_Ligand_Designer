@@ -1569,7 +1569,7 @@ def boltz_aptamer_hallucination(
                                   num_pos=length, cutoff=intra_chain_cutoff, binary=False, 
                                   mask_1d=chain_mask, mask_1b=chain_mask)
             
-            total_loss = i_con_loss + con_loss
+            total_loss = 0.8 * i_con_loss + 0.6 * con_loss  # 降低权重
             
             # 如果有置信度预测，添加pLDDT损失
             if 'plddt' in dict_out:
@@ -1582,6 +1582,7 @@ def boltz_aptamer_hallucination(
             
             # 添加适配体特异性约束 (作为正则化项)
             aptamer_constraints = calculate_aptamer_constraints(batch, aptamer_config, chain_to_number, aptamer_config.target_type)
+            
             for constraint_name, constraint_value in aptamer_constraints.items():
                 total_loss = total_loss + constraint_value
             

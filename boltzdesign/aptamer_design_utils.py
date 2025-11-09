@@ -320,41 +320,86 @@ def calculate_aptamer_constraints(batch, aptamer_config, chain_to_number, target
     
     aptamer_mask = batch['entity_id'] == chain_to_number[aptamer_config.aptamer_chain]
     if not aptamer_mask.any():
-        return {'gc_content_loss': torch.tensor(0.0, device=device)}
+        return {'total_loss': torch.tensor(0.0, device=device)}
     
     sequence_probs = torch.softmax(batch['res_type_logits'][aptamer_mask, :], dim=-1)
     
-    # ===== 新增：强烈惩罚N token =====
-    n_prob = sequence_probs[:, aptamer_config.n_idx].mean()
-    n_penalty = n_prob * 10.0  # 强惩罚因子
-    constraints['n_penalty_loss'] = n_penalty
+    # ===== 1. N惩罚（已经有效，保持） =====
+    if hasattr(aptamer_config, 'n_idx'):
+        n_prob = sequence_probs[:, aptamer_config.n_idx].mean()
+        constraints['n_penalty'] = n_prob * 10.0
     
-    # GC含量约束（只计算确定的核苷酸）
+    # ===== 2. GC含量约束 =====
     gc_content = sequence_probs[:, [aptamer_config.g_idx, aptamer_config.c_idx]].sum(dim=-1).mean()
     gc_target = 0.5
-    gc_weight = 0.15 if target_type == 'ligand' else 0.1
-    constraints['gc_content_loss'] = ((gc_content - gc_target) ** 2) * gc_weight
+    gc_weight = 0.15 if target_type == 'ligand' else 0.12
+    constraints['gc_content'] = ((gc_content - gc_target) ** 2) * gc_weight
     
-    # 序列多样性约束（只用确定的核苷酸）
-    nucleotide_probs = sequence_probs[:, aptamer_config.allowed_tokens]  # 只用4个确定核苷酸
+    # ===== 3. 全局序列多样性 =====
+    nucleotide_probs = sequence_probs[:, aptamer_config.allowed_tokens]
     global_dist = nucleotide_probs.mean(dim=0)
     entropy = -torch.sum(global_dist * torch.log(global_dist + 1e-8))
     max_entropy = torch.log(torch.tensor(4.0, device=device))
-    diversity_loss = (max_entropy - entropy) * 0.08  # 提高权重
-    constraints['diversity_loss'] = diversity_loss
+    constraints['diversity'] = (max_entropy - entropy) * 0.1
     
-    # 同聚物惩罚（poly-X检测）
-    # 检测连续相同核苷酸的概率
-    poly_penalty = 0.0
-    for i in range(len(aptamer_config.allowed_tokens)):
-        # 计算每个位置选择同一核苷酸的概率
-        single_nt_prob = sequence_probs[:, aptamer_config.allowed_tokens[i]]
-        # 如果某个核苷酸在多个位置都是高概率，惩罚
-        if len(single_nt_prob) > 1:
-            poly_score = (single_nt_prob > 0.5).float().mean()  # 高概率位置比例
-            poly_penalty += poly_score ** 2
+    # ===== 4. 新增：局部同聚物检测（滑动窗口） =====
+    # 使用滑动窗口检测连续相同核苷酸
+    seq_len = sequence_probs.shape[0]
+    poly_penalty = torch.tensor(0.0, device=device)
     
-    constraints['poly_penalty_loss'] = poly_penalty * 0.05
+    # 检测连续3个及以上相同核苷酸的概率
+    window_size = 3  # 窗口大小
+    for i in range(seq_len - window_size + 1):
+        window_probs = sequence_probs[i:i+window_size, :]  # [window_size, num_tokens]
+        
+        # 对每种核苷酸，计算窗口内连续出现的概率
+        for nt_idx in range(len(aptamer_config.allowed_tokens)):
+            token_id = aptamer_config.allowed_tokens[nt_idx]
+            # 窗口内该核苷酸的概率
+            nt_probs_in_window = window_probs[:, token_id]
+            # 如果窗口内所有位置都倾向选择同一核苷酸，惩罚
+            # 使用概率的乘积（连续性指标）
+            consecutive_prob = nt_probs_in_window.prod()
+            poly_penalty += consecutive_prob
+    
+    # 归一化并加权
+    poly_penalty = poly_penalty / max(1, seq_len - window_size + 1)
+    constraints['poly_penalty'] = poly_penalty * 0.5  # 强惩罚
+    
+    # ===== 5. 新增：局部多样性（相邻核苷酸不同） =====
+    # 鼓励相邻位置选择不同的核苷酸
+    local_diversity_loss = torch.tensor(0.0, device=device)
+    for i in range(seq_len - 1):
+        # 当前位置和下一个位置的概率分布
+        curr_prob = sequence_probs[i, aptamer_config.allowed_tokens]
+        next_prob = sequence_probs[i+1, aptamer_config.allowed_tokens]
+        
+        # 计算选择相同核苷酸的概率
+        same_nt_prob = (curr_prob * next_prob).sum()  # 点积
+        local_diversity_loss += same_nt_prob
+    
+    local_diversity_loss = local_diversity_loss / max(1, seq_len - 1)
+    constraints['local_diversity'] = local_diversity_loss * 0.3
+    
+    # ===== 6. 碱基配对平衡 =====
+    if aptamer_config.aptamer_type == 'RNA':
+        a_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['A'])
+        u_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['U'])
+        g_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['G'])
+        c_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['C'])
+    else:  # DNA
+        a_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['DA'])
+        u_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['DT'])
+        g_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['DG'])
+        c_idx_local = aptamer_config.allowed_tokens.index(const.token_ids['DC'])
+    
+    a_prob = nucleotide_probs[:, a_idx_local].mean()
+    u_prob = nucleotide_probs[:, u_idx_local].mean()
+    g_prob = nucleotide_probs[:, g_idx_local].mean()
+    c_prob = nucleotide_probs[:, c_idx_local].mean()
+    
+    pairing_balance = ((a_prob - u_prob) ** 2 + (g_prob - c_prob) ** 2) * 0.05
+    constraints['pairing_balance'] = pairing_balance
     
     return constraints
 

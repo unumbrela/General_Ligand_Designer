@@ -128,3 +128,13 @@ python boltzdesign1.py \
 
 
 输出很多N
+
+
+改了 iter，改了点utils
+ UCCCGGGGGAACGCACCUUAAAUUUGCGUGAACUUUGGGA
+ 0.57
+
+ 序列: UCCCGGGGGAACGCACCUUAAAUUUGCGUGAACUUUGGGA
+         ↑↑↑↑↑↑↑
+      7个连续的G
+poly_penalty损失权重太低或实现有问题

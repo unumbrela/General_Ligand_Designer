@@ -15,12 +15,12 @@ gc_content_weight: 0.1   # GC含量约束权重
 # 设计算法参数
 design_algorithm: 3stages
 pre_run: true             # 启用第0阶段预热
-learning_rate: 0.1
-learning_rate_pre: 0.2
-pre_iteration: 50
-soft_iteration: 100
-temp_iteration: 60
-hard_iteration: 10
+learning_rate: 0.08    # 0.1 → 0.08
+learning_rate_pre: 0.15  # 0.2 → 0.15
+pre_iteration: 60      # 50 → 60
+soft_iteration: 120    # 100 → 120
+temp_iteration: 80     # 60 → 80
+hard_iteration: 15     # 10 → 15
 semi_greedy_steps: 2
 optimizer_type: SGD
 set_train: true
@@ -35,7 +35,7 @@ optimize_contact_per_binder_pos: true
 pocket_conditioning: true
 
 # 其他参数
-recycling_steps: 0
+recycling_steps: 1
 use_temp: true
 disconnect_feats: true
 disconnect_pairformer: false
