@@ -50,13 +50,7 @@ If you want to disable af3 cross validation add flag --run_alphafold False
 - If interaction features are not obtained through recycling=0, increase recycling_steps to 1 or more
 
 
-## 🎥 Trajectory Visualization
-We installed trajectory visualization based on LogMD
-(https://github.com/log-md/logmd, implemented for Boltz diffusion trajectory https://colab.research.google.com/drive/1-9GXUPna4T0VFlDz9I64gzRQz259_G8f?usp=sharing#scrollTo=4eXNO1JJHYrB)
 
-If you want to enable visualization of the trajectory, you need to set --save_trajectory True. However, be cautious that if you are just optimizing with distogram (--distogram_only True), it will take more time since it also runs the diffusion modules to get actual xyz coordinates.
-
----
 
 ## ⚙️ Design Configuration
 
@@ -140,30 +134,3 @@ The designs are saved along with `high_iptm_confidence_scores.csv`, which contai
   - [ ] DNA/RNA specificity scoring
 - [ ] **Enhanced Scoring**: Currently uses Rosetta scores (from [BindCraft])
 
-## 📄 License & Citation
-
-**License**: MIT License - See LICENSE file for details
-**Citation**: If you use BoltzDesign1 in your research, please cite:
-```
-@article{cho2025boltzdesign1,
-  title={Boltzdesign1: Inverting all-atom structure prediction model for generalized biomolecular binder design},
-  author={Cho, Yehlin and Pacesa, Martin and Zhang, Zhidian and Correia, Bruno E and Ovchinnikov, Sergey},
-  journal={bioRxiv},
-  pages={2025--04},
-  year={2025},
-  publisher={Cold Spring Harbor Laboratory}
-}
-```
----
-
-## 📧 Contact & Support
-
-**Questions or Collaboration**: yehlin@mit.edu
-
-**Issues**: Please report bugs and feature requests via GitHub Issues
-
----
-
-## ⚠️ Important Disclaimer
-
-> **EXPERIMENTAL SOFTWARE**: This pipeline is under active development and has **NOT been experimentally validated** in laboratory settings. We release this code to enable community contributions and collaborative development. Use at your own discretion and validate results independently.
