@@ -49,6 +49,41 @@ def str2bool(v):
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
 
+def set_random_seeds(seed):
+    """Set random seeds for reproducibility across all random number generators
+
+    Args:
+        seed: Integer seed value. If None, seeds are not set (results will vary)
+
+    Returns:
+        True if seeds were set, False otherwise
+    """
+    if seed is None:
+        return False
+
+    # Python's built-in random module
+    random.seed(seed)
+
+    # NumPy
+    np.random.seed(seed)
+
+    # PyTorch CPU
+    torch.manual_seed(seed)
+
+    # PyTorch GPU (if available)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # For multi-GPU setups
+
+        # Additional settings for PyTorch determinism
+        # Note: This may impact performance slightly
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+
+    print(f"🎲 随机种子已设置: {seed} (结果将可重现)")
+    return True
+
+
 def setup_gpu_environment(gpu_id):
     """Setup GPU environment variables"""
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -282,6 +317,11 @@ Examples:
                         help='Show animation')
     parser.add_argument('--save_trajectory', type=str2bool, default=False,
                         help='Save trajectory')
+
+    # Reproducibility
+    parser.add_argument('--seed', type=int, default=None,
+                        help='Random seed for reproducibility (default: None, results will vary each run)')
+
     return parser.parse_args()
 
 
@@ -654,6 +694,13 @@ def setup_environment():
     work_dir = args.work_dir or os.getcwd()
     os.chdir(work_dir)
     setup_gpu_environment(args.gpu_id)
+
+    # Set random seeds for reproducibility
+    if args.seed is not None:
+        set_random_seeds(args.seed)
+    else:
+        print("⚠️  未设置随机种子 - 每次运行结果会不同")
+
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     return args
@@ -846,22 +893,28 @@ def run_aptamer_design_pipeline(args):
     print("🧬" + "="*80)
     print(f"🚀 启动 {args.aptamer_type} 适配体设计流程")
     print("🧬" + "="*80)
-    
+
     # 验证必要参数
     if not args.target_protein_seq and not args.target_ligand_smiles:
         print("❌ 错误: 适配体设计模式需要目标蛋白质序列 (--target_protein_seq) 或小分子SMILES (--target_ligand_smiles)")
         return
-    
+
     if args.target_protein_seq and args.target_ligand_smiles:
         print("❌ 错误: 请选择一个目标类型：蛋白质序列或小分子SMILES，不能同时指定两者")
         return
-    
+
     if args.aptamer_length < 20 or args.aptamer_length > 80:
         print("⚠️  警告: 适配体长度建议在20-80之间")
-    
+
     # 设置环境
     setup_gpu_environment(args.gpu_id)
     print(f"🖥️  使用GPU: {args.gpu_id}")
+
+    # Set random seeds for reproducibility
+    if args.seed is not None:
+        set_random_seeds(args.seed)
+    else:
+        print("⚠️  未设置随机种子 - 每次运行结果会不同")
     
     # 初始化模型
     sys.path.append(f'{os.getcwd()}/boltzdesign')
@@ -1294,6 +1347,11 @@ def show_aptamer_design_help():
 - --save_structures: 是否保存结构文件 (默认True)
 - --output_format: 输出格式 cif/pdb/both (默认both)
 - --input_yaml: 结构预测模式的输入YAML文件
+- --seed: 随机种子 (例如: --seed 42, 用于可重现的结果)
+
+🎲 可重现性说明:
+- 不设置 --seed: 每次运行结果会不同 (探索多样性)
+- 设置 --seed: 相同种子产生相同结果 (调试/验证)
 """)
 
 if __name__ == "__main__":
