@@ -1,0 +1,12 @@
+version: 1
+sequences:
+- rna:
+    id:
+    - A
+    sequence: UAGGUGUCACCGCGC
+    msa: empty
+- protein:
+    id:
+    - B
+    sequence: MKLLVVV
+    msa: empty

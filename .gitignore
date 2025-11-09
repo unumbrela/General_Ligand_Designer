@@ -1,0 +1,45 @@
+
+*.pt
+*.pth
+
+# 忽略 TensorFlow / Keras 权重文件
+*.h5
+*.hdf5
+*.pb
+*.ckpt
+*.ckpt.index
+*.ckpt.meta
+*.data-00000-of-00001
+
+*.onnx
+*.safetensors
+
+
+# data/
+# *.csv
+*.zip
+*.gz
+
+
+__pycache__/
+*.py[cod]
+*$py.class
+model_params
+
+
+# 虚拟环境 (Virtual Environments)
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+
+.idea/
+
+# VSCode
+.vscode/
+
+

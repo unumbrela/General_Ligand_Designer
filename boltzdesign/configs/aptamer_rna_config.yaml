@@ -1,0 +1,45 @@
+# RNA适配体设计专用配置文件
+# 角色互换: RNA作为设计对象，蛋白质作为结合目标
+
+# 适配体参数
+aptamer_type: RNA
+aptamer_chain: A          # 设计的适配体链ID
+target_chains: [B]        # 目标蛋白质链ID
+
+# 序列参数 
+length_min: 20           # 最小适配体长度
+length_max: 80           # 最大适配体长度
+gc_content_target: 0.5   # 目标GC含量
+gc_content_weight: 0.1   # GC含量约束权重
+
+# 设计算法参数
+design_algorithm: 3stages
+pre_run: true             # 启用第0阶段预热
+learning_rate: 0.1
+learning_rate_pre: 0.2
+pre_iteration: 30
+soft_iteration: 75
+temp_iteration: 45
+hard_iteration: 5
+semi_greedy_steps: 2
+optimizer_type: SGD
+set_train: true
+distogram_only: true
+
+# 结构约束参数
+inter_chain_cutoff: 20.0   # 链间接触距离阈值
+intra_chain_cutoff: 14.0   # 链内接触距离阈值
+num_inter_contacts: 2      # 最小链间接触数
+num_intra_contacts: 2      # 最小链内接触数
+optimize_contact_per_binder_pos: true
+pocket_conditioning: true
+
+# 其他参数
+recycling_steps: 0
+use_temp: true
+disconnect_feats: true
+disconnect_pairformer: false
+mask_ligand: false
+non_protein_target: true
+msa_max_seqs: 4096
+noise_scaling: 0.1

@@ -1,0 +1,58 @@
+# DNA适配体-小分子结合设计配置
+# 基于Boltz模型的DNA适配体设计，目标为小分子配体
+
+# 基础设计参数
+binder_chain: A                    # 适配体链ID (DNA)
+target_chains: [B]                 # 目标小分子链ID  
+design_algorithm: 3stages          # 三阶段优化算法
+pre_run: true                      # 启用第0阶段预热
+aptamer_type: DNA                  # 适配体类型
+aptamer_chain: A                   # 适配体链标识
+
+# 适配体长度控制
+length_min: 20                     # 最小长度 (nucleotides)
+length_max: 80                     # 最大长度 (nucleotides)
+
+# 优化迭代参数
+pre_iteration: 30                  # 预优化轮数
+soft_iteration: 75                 # 软优化轮数
+temp_iteration: 45                 # 温度退火轮数  
+hard_iteration: 10                 # 硬优化轮数
+semi_greedy_steps: 2               # 半贪婪步数
+
+# 学习率设置
+learning_rate: 0.1                 # 主学习率
+learning_rate_pre: 0.2             # 预训练学习率
+
+# 接触约束参数 (针对DNA-小分子结合优化)
+inter_chain_cutoff: 12.0           # 链间接触距离阈值 (Å) - 小分子结合更近距离
+intra_chain_cutoff: 14.0           # 链内接触距离阈值 (Å)
+num_inter_contacts: 3              # 链间接触数量 - 增加小分子结合点
+num_intra_contacts: 4              # 链内接触数量
+
+# 序列约束参数
+e_soft: 0.8                        # 软约束强度
+e_soft_1: 0.8                      # 第一阶段软约束
+e_soft_2: 1.0                      # 第二阶段软约束
+
+# DNA特异性约束
+gc_content_target: 0.5             # 目标GC含量 (50%)
+gc_content_weight: 0.1             # GC含量约束权重
+
+# 模型配置
+set_train: true                    # 训练模式
+use_temp: true                     # 使用温度退火
+disconnect_feats: true             # 断开特征连接
+disconnect_pairformer: false       # 保持Pairformer连接
+distogram_only: false              # 使用完整置信度预测
+mask_ligand: false                 # 不遮盖小分子 (重要!)
+non_protein_target: true           # 非蛋白质目标标识
+
+# 高级参数
+pocket_conditioning: true          # 口袋调节 - 对小分子结合重要
+optimize_contact_per_binder_pos: false
+increasing_contact_over_itr: false
+optimizer_type: SGD                # 优化器类型
+msa_max_seqs: 4096                 # MSA最大序列数
+recycling_steps: 0                 # 回收步数
+noise_scaling: 0.1                 # 噪声缩放

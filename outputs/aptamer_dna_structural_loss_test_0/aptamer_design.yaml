@@ -1,0 +1,12 @@
+version: 1
+sequences:
+- dna:
+    id:
+    - A
+    sequence: TTATTCAGAATAAAAACCAG
+    msa: empty
+- protein:
+    id:
+    - B
+    sequence: MKLLVVVGGVGSGKTTLLRQLA
+    msa: empty
