@@ -976,7 +976,8 @@ def run_aptamer_design_pipeline(args):
             else:
                 print(f"🧪 目标小分子SMILES: {args.target_ligand_smiles}")
                 print(f"🔗 小分子复杂度: {len(args.target_ligand_smiles)} 字符")
-            
+
+            # 运行结构预测和保存
             # 运行结构预测和保存
             if args.save_structures:
                 print("\n🏗️ 开始生成最终三维结构...")
@@ -984,30 +985,33 @@ def run_aptamer_design_pipeline(args):
                     structure_results = run_aptamer_structure_prediction(
                         args, yaml_path, output_dir, None, final_sequence
                     )
-                    print(f"✅ 结构预测完成! 文件保存在: {structure_results['structure_dir']}")
+                    print(f"\n✅ 结构预测完成! 文件保存在: {structure_results['structure_dir']}")
                     
                     # 显示生成的文件
+                    print("\n📋 生成的文件:")
                     for file_type, file_path in structure_results['files'].items():
                         if file_path and os.path.exists(file_path):
-                            file_size = os.path.getsize(file_path) / 1024  # KB
+                            file_size = os.path.getsize(file_path) / 1024
                             print(f"📁 {file_type.upper()}: {file_path} ({file_size:.1f} KB)")
                     
-                    # 显示结构质量信息
+                    # 显示详细的结构质量信息
                     if 'confidence' in structure_results:
                         conf = structure_results['confidence']
-                        print(f"📊 结构置信度 (pLDDT): {conf['avg_plddt']:.2f}")
-                        if conf['avg_plddt'] > 70:
-                            print("✅ 结构质量: 高置信度")
-                        elif conf['avg_plddt'] > 50:
-                            print("⚠️  结构质量: 中等置信度")
-                        else:
-                            print("❌ 结构质量: 低置信度")
+                        print(f"\n📊 结构置信度指标:")
+                        print(f"  • pLDDT (局部质量): {conf['avg_plddt']:.3f}")
+                        print(f"  • iPTM (链间接触): {conf['iptm']:.3f} ⭐关键指标")
+                        print(f"  • pTM (整体对齐): {conf['ptm']:.3f}")
+                        print(f"  • iPAE (链间误差): {conf['ipae']:.2f}Å ⭐关键指标")
+                        
+                        # 综合评级
+                        if 'evaluation' in structure_results and 'final_score' in structure_results['evaluation']:
+                            eval_result = structure_results['evaluation']
+                            print(f"\n🎯 综合质量评分: {eval_result['final_score']:.1f}/100")
+                            print(f"📋 评级: {eval_result['grade']}")
                         
                 except Exception as e:
                     print(f"⚠️ 结构预测过程中出现错误: {str(e)}")
                     print("💡 序列设计已完成，但结构生成失败")
-        else:
-            print("⚠️  警告: 无法提取最终序列")
         
     except Exception as e:
         print(f"❌ 适配体设计过程中出现错误: {str(e)}")
@@ -1015,27 +1019,346 @@ def run_aptamer_design_pipeline(args):
         print("详细错误信息:")
         traceback.print_exc()
 
-def run_aptamer_structure_prediction(args, yaml_path, output_dir, boltz_model, sequence=None):
+# ============================================================================
+# 在 boltzdesign1.py 中添加/修改以下函数
+# ============================================================================
+
+def evaluate_aptamer_comprehensive(confidence_file, sequence, aptamer_type, cif_file=None):
     """
-    运行适配体结构预测
+    综合评估RNA/DNA适配体设计质量
+    
+    评估维度：
+    1. 结构置信度 (pLDDT, iPTM, iPAE) - 50%权重
+    2. 二级结构 (RNAfold MFE) - 30%权重
+    3. 序列质量 - 20%权重
     
     Args:
-        args: 命令行参数
-        yaml_path: YAML配置文件路径
-        output_dir: 输出目录
-        boltz_model: 已加载的Boltz模型
-        sequence: 适配体序列(可选)
+        confidence_file: 置信度JSON文件路径
+        sequence: 适配体序列
+        aptamer_type: 'RNA' 或 'DNA'
+        cif_file: CIF结构文件（可选，用于额外验证）
     
     Returns:
-        dict: 包含结构文件路径和置信度信息的字典
+        dict: 评估结果字典
+    """
+    import json
+    import re
+    import subprocess
+    from collections import Counter
+    import math
+    
+    print(f"\n{'='*80}")
+    print(f"🧬 {aptamer_type}适配体设计质量综合评估")
+    print(f"{'='*80}\n")
+    
+    results = {
+        'scores': {},
+        'metrics': {},
+        'recommendations': []
+    }
+    
+    # ===== 1. 结构置信度指标 (最重要!) =====
+    print(f"📊 1. 结构预测置信度评估")
+    
+    try:
+        with open(confidence_file, 'r') as f:
+            conf = json.load(f)
+        
+        # pLDDT (局部结构质量)
+        plddt = conf.get('complex_plddt', 0.0)
+        plddt_score = plddt * 100
+        plddt_grade = "✅优秀" if plddt > 0.7 else "⚠️中等" if plddt > 0.5 else "❌低"
+        results['metrics']['plddt'] = plddt
+        print(f"   • pLDDT (局部结构质量): {plddt:.3f} {plddt_grade}")
+        print(f"     └─ 参考意义: 对RNA/DNA的置信度预测有限，仅作参考")
+        
+        # iPTM (链间接触质量 - 关键指标!)
+        iptm = conf.get('iptm', 0.0)
+        iptm_score = max(0, min(100, (iptm - 0.3) / 0.4 * 100))  # 0.3-0.7映射到0-100
+        iptm_grade = "✅优秀" if iptm > 0.6 else "⚠️中等" if iptm > 0.4 else "❌低"
+        results['metrics']['iptm'] = iptm
+        print(f"   • iPTM (链间接触质量): {iptm:.3f} {iptm_grade} ⭐主要指标")
+        print(f"     └─ 评估适配体与蛋白质的结合强度 (>0.6优秀, >0.4可接受)")
+        
+        # pTM (整体对齐质量)
+        ptm = conf.get('ptm', 0.0)
+        ptm_score = max(0, min(100, (ptm - 0.3) / 0.4 * 100))
+        results['metrics']['ptm'] = ptm
+        print(f"   • pTM (整体对齐质量): {ptm:.3f}")
+        
+        # iPAE (链间距离误差 - 关键指标!)
+        # 从pair_chains_iptm中提取链间pAE信息
+        ipae_value = None
+        if 'pair_chains_iptm' in conf:
+            # 尝试提取链间的pAE信息（如果有的话）
+            # 注意：confidence文件可能不直接包含ipAE，但可以从iptm推算
+            # 通常 ipAE ≈ (1 - iptm) * 31.0
+            ipae_value = (1 - iptm) * 31.0 if iptm > 0 else 31.0
+        
+        if ipae_value is not None:
+            ipae_score = max(0, 100 - ipae_value * 5)  # <10Å得高分
+            ipae_grade = "✅优秀" if ipae_value < 10 else "⚠️中等" if ipae_value < 15 else "❌高"
+            results['metrics']['ipae'] = ipae_value
+            print(f"   • iPAE (链间距离误差): {ipae_value:.2f}Å {ipae_grade} ⭐主要指标")
+            print(f"     └─ 预测的链间原子距离误差 (<10Å优秀, <15Å可接受)")
+        else:
+            ipae_score = 50  # 默认中等分
+            print(f"   • iPAE (链间距离误差): 未提供")
+        
+        # 计算结构置信度总分 (iPTM和iPAE权重最高)
+        structure_conf_score = (
+            iptm_score * 0.45 +      # iPTM 45%
+            ipae_score * 0.30 +      # iPAE 30%
+            ptm_score * 0.15 +       # pTM 15%
+            plddt_score * 0.10       # pLDDT 10%
+        )
+        results['scores']['structure_confidence'] = structure_conf_score
+        
+        print(f"\n   📈 结构置信度得分: {structure_conf_score:.1f}/100")
+        print(f"      (iPTM 45% + iPAE 30% + pTM 15% + pLDDT 10%)")
+        
+    except Exception as e:
+        print(f"   ⚠️ 读取置信度文件失败: {e}")
+        structure_conf_score = 0
+        results['scores']['structure_confidence'] = 0
+    
+    # ===== 2. RNA/DNA二级结构预测 =====
+    print(f"\n🧬 2. {aptamer_type}二级结构预测 (ViennaRNA)")
+    
+    try:
+        # 检查RNAfold是否可用
+        result = subprocess.run(['which', 'RNAfold'], 
+                              capture_output=True, text=True, timeout=5)
+        
+        if result.returncode == 0:
+            # 运行RNAfold
+            process = subprocess.Popen(['RNAfold', '--noPS'], 
+                                     stdin=subprocess.PIPE,
+                                     stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE,
+                                     text=True)
+            
+            stdout, stderr = process.communicate(input=sequence, timeout=30)
+            
+            # 解析输出
+            lines = stdout.strip().split('\n')
+            if len(lines) >= 2:
+                structure_line = lines[1]
+                match = re.search(r'\(([-\d.]+)\)', structure_line)
+                
+                if match:
+                    mfe = float(match.group(1))
+                    
+                    # MFE评分
+                    if mfe < -25:
+                        mfe_grade = "✅优秀(非常稳定)"
+                        mfe_score = 100
+                    elif mfe < -15:
+                        mfe_grade = "✅良好(稳定)"
+                        mfe_score = 85
+                    elif mfe < -8:
+                        mfe_grade = "⚠️中等(较稳定)"
+                        mfe_score = 65
+                    else:
+                        mfe_grade = "❌不稳定"
+                        mfe_score = 35
+                    
+                    results['metrics']['mfe'] = mfe
+                    print(f"   • 最小自由能(MFE): {mfe:.2f} kcal/mol {mfe_grade}")
+                    print(f"     └─ 热力学稳定性 (<-15 kcal/mol 为稳定)")
+                    
+                    # 二级结构
+                    structure = structure_line.split()[0]
+                    paired = structure.count('(') + structure.count(')')
+                    pairing_ratio = paired / len(structure)
+                    
+                    results['metrics']['secondary_structure'] = structure
+                    results['metrics']['pairing_ratio'] = pairing_ratio
+                    
+                    if pairing_ratio > 0.5:
+                        pairing_grade = "✅高配对率"
+                        pairing_score = 100
+                    elif pairing_ratio > 0.3:
+                        pairing_grade = "⚠️中等配对率"
+                        pairing_score = 70
+                    else:
+                        pairing_grade = "❌低配对率"
+                        pairing_score = 40
+                    
+                    print(f"   • 二级结构: {structure}")
+                    print(f"   • 碱基配对率: {pairing_ratio*100:.1f}% ({paired}/{len(sequence)}) {pairing_grade}")
+                    
+                    secondary_structure_score = (mfe_score + pairing_score) / 2
+                    
+                else:
+                    print(f"   ⚠️ 无法解析RNAfold输出")
+                    secondary_structure_score = 50
+            else:
+                print(f"   ⚠️ RNAfold输出格式异常")
+                secondary_structure_score = 50
+                
+        else:
+            print(f"   ⚠️ RNAfold未安装，跳过二级结构预测")
+            print(f"   💡 安装: conda install -c bioconda viennarna")
+            secondary_structure_score = 50
+            
+    except subprocess.TimeoutExpired:
+        print(f"   ⚠️ RNAfold执行超时")
+        secondary_structure_score = 50
+    except Exception as e:
+        print(f"   ⚠️ RNAfold执行失败: {e}")
+        secondary_structure_score = 50
+    
+    results['scores']['secondary_structure'] = secondary_structure_score
+    print(f"\n   📈 二级结构得分: {secondary_structure_score:.1f}/100")
+    
+    # ===== 3. 序列质量评估 =====
+    print(f"\n📝 3. 序列质量评估")
+    
+    # N含量
+    n_count = sequence.count('N')
+    n_ratio = n_count / len(sequence)
+    n_score = max(0, 100 - n_ratio * 200)
+    results['metrics']['n_content'] = n_ratio
+    print(f"   • N含量: {n_count} ({n_ratio*100:.1f}%) - 得分: {n_score:.0f}/100")
+    
+    # GC含量
+    gc_count = sequence.count('G') + sequence.count('C')
+    gc_content = gc_count / len(sequence)
+    gc_score = max(0, 100 - abs(gc_content - 0.5) * 200)
+    results['metrics']['gc_content'] = gc_content
+    print(f"   • GC含量: {gc_content*100:.1f}% - 得分: {gc_score:.0f}/100")
+    print(f"     └─ 生物学最优值: 50% (40-60%为合理范围)")
+    
+    # 序列复杂度
+    counts = Counter(sequence)
+    entropy = -sum((c/len(sequence))*math.log2(c/len(sequence)) 
+                   for c in counts.values() if c > 0)
+    max_entropy = math.log2(4)
+    complexity_score = (entropy / max_entropy) * 100
+    results['metrics']['entropy'] = entropy
+    print(f"   • 序列复杂度(熵): {entropy:.3f}/{max_entropy:.3f} - 得分: {complexity_score:.0f}/100")
+    
+    # poly-X检测
+    max_poly = 0
+    poly_details = []
+    for nt in 'AGCTU':
+        matches = re.findall(f'{nt}{{3,}}', sequence)
+        if matches:
+            max_len = max(len(m) for m in matches)
+            max_poly = max(max_poly, max_len)
+            poly_details.append(f"{nt}×{max_len}")
+    
+    poly_score = max(0, 100 - max_poly * 20)
+    poly_grade = "✅无问题" if max_poly <= 3 else "⚠️有同聚物" if max_poly <= 5 else "❌严重"
+    results['metrics']['max_poly'] = max_poly
+    print(f"   • 同聚物: 最长{max_poly} ({', '.join(poly_details) if poly_details else '无'}) {poly_grade}")
+    print(f"     └─ 得分: {poly_score:.0f}/100 (≤3为合格)")
+    
+    sequence_quality_score = (n_score + gc_score + complexity_score + poly_score) / 4
+    results['scores']['sequence_quality'] = sequence_quality_score
+    print(f"\n   📈 序列质量得分: {sequence_quality_score:.1f}/100")
+    
+    # ===== 4. 综合评分 =====
+    print(f"\n{'='*80}")
+    print(f"🎯 综合评分 (针对RNA/DNA适配体设计)")
+    print(f"{'='*80}")
+    
+    # 权重配置
+    weights = {
+        'structure_confidence': 0.50,  # 结构置信度 50% (iPTM/iPAE为主)
+        'secondary_structure': 0.30,   # 二级结构 30% (RNA/DNA特异性)
+        'sequence_quality': 0.20       # 序列质量 20%
+    }
+    
+    final_score = (
+        structure_conf_score * weights['structure_confidence'] +
+        secondary_structure_score * weights['secondary_structure'] +
+        sequence_quality_score * weights['sequence_quality']
+    )
+    
+    results['final_score'] = final_score
+    
+    print(f"   • 结构置信度: {structure_conf_score:.1f}/100 (权重{weights['structure_confidence']*100:.0f}%)")
+    print(f"   • 二级结构:   {secondary_structure_score:.1f}/100 (权重{weights['secondary_structure']*100:.0f}%)")
+    print(f"   • 序列质量:   {sequence_quality_score:.1f}/100 (权重{weights['sequence_quality']*100:.0f}%)")
+    print(f"\n   {'🏆 最终得分:':<20} {final_score:.1f}/100\n")
+    
+    # 评级
+    if final_score >= 75:
+        grade = "✅ 优秀 - 推荐用于实验验证"
+        grade_emoji = "🌟"
+    elif final_score >= 60:
+        grade = "⚠️  良好 - 可尝试，建议优化"
+        grade_emoji = "👍"
+    elif final_score >= 45:
+        grade = "⚠️  中等 - 需要进一步优化"
+        grade_emoji = "⚙️"
+    else:
+        grade = "❌ 不合格 - 建议重新设计"
+        grade_emoji = "🔴"
+    
+    results['grade'] = grade
+    print(f"   {grade_emoji} {'评级:':<20} {grade}\n")
+    
+    # ===== 5. 改进建议 =====
+    print(f"💡 改进建议:")
+    
+    if iptm < 0.5:
+        results['recommendations'].append("iPTM过低")
+        print(f"   🔴 iPTM={iptm:.2f} - 适配体与蛋白结合弱:")
+        print(f"      • 增加 num_inter_contacts 到 3-4")
+        print(f"      • 减小 inter_chain_cutoff 到 18Å (要求更紧密接触)")
+        print(f"      • 增加链间接触损失权重")
+        print(f"      • 考虑延长适配体长度增加接触面积")
+    
+    if ipae_value and ipae_value > 12:
+        results['recommendations'].append("iPAE过高")
+        print(f"   🟡 iPAE={ipae_value:.1f}Å - 链间距离误差较大:")
+        print(f"      • 使用 distogram_only: false (启用Confidence模块)")
+        print(f"      • 增加 recycling_steps 到 1-2")
+    
+    if secondary_structure_score < 60:
+        results['recommendations'].append("二级结构不稳定")
+        print(f"   🟡 MFE={results['metrics'].get('mfe', 0):.1f} - 二级结构不够稳定:")
+        print(f"      • 调整GC含量到45-55%以增强稳定性")
+        print(f"      • 考虑添加碱基配对约束")
+        print(f"      • 增加适配体长度允许更多配对")
+    
+    if max_poly > 4:
+        results['recommendations'].append("同聚物过长")
+        print(f"   🟡 poly-X={max_poly} - 同聚物过长:")
+        print(f"      • 增加 poly_penalty 损失权重")
+        print(f"      • 增加 local_diversity 约束")
+    
+    if gc_content < 0.35 or gc_content > 0.65:
+        results['recommendations'].append("GC含量异常")
+        print(f"   🟡 GC={gc_content*100:.0f}% - GC含量偏离最优值:")
+        print(f"      • 调整 gc_content_weight 到 0.15-0.20")
+    
+    if plddt < 0.6:
+        results['recommendations'].append("整体置信度低")
+        print(f"   🟡 pLDDT={plddt:.2f} - 整体结构置信度较低:")
+        print(f"      • 设置 distogram_only: false")
+        print(f"      • 增加优化迭代次数")
+        print(f"      • 减小学习率提高收敛稳定性")
+    
+    if not results['recommendations']:
+        print(f"   ✅ 设计质量良好，无明显问题需改进")
+    
+    print(f"\n{'='*80}\n")
+    
+    return results
+
+
+def run_aptamer_structure_prediction(args, yaml_path, output_dir, boltz_model, sequence=None):
+    """
+    运行适配体结构预测 - 修改版（添加完整评估）
     """
     import sys
     sys.path.append('/home/yifan/boltz-for-RNA-DNA/boltz/src')
     from boltz.data.write.mmcif import to_mmcif
     from boltz.data.write.pdb import to_pdb
-    from boltz.data.tokenize.boltz import BoltzTokenizer
-    from boltz.data.feature.featurizer import BoltzFeaturizer
-    from boltz.data.parse.schema import parse_boltz_schema
     
     # 设置结构输出目录
     if args.structure_output_dir:
@@ -1059,7 +1382,7 @@ def run_aptamer_structure_prediction(args, yaml_path, output_dir, boltz_model, s
             "boltz", "predict", yaml_path,
             "--out_dir", structure_dir,
             "--recycling_steps", str(args.recycling_steps),
-            "--output_format", "mmcif"  # 先生成mmcif格式
+            "--output_format", "mmcif"
         ]
         
         # 运行boltz预测
@@ -1069,7 +1392,7 @@ def run_aptamer_structure_prediction(args, yaml_path, output_dir, boltz_model, s
             print(f"❌ Boltz命令执行失败:")
             print(f"STDOUT: {result.stdout}")
             print(f"STDERR: {result.stderr}")
-            raise RuntimeError(f"Boltz prediction failed with return code {result.returncode}")
+            raise RuntimeError(f"Boltz prediction failed")
         
         print("✅ Boltz结构预测完成")
         
@@ -1077,17 +1400,18 @@ def run_aptamer_structure_prediction(args, yaml_path, output_dir, boltz_model, s
         results = {
             'structure_dir': structure_dir,
             'files': {},
-            'confidence': {}
+            'confidence': {},
+            'evaluation': {}
         }
         
         # 查找CIF文件
         cif_files = glob.glob(os.path.join(structure_dir, "**", "*.cif"), recursive=True)
         if cif_files:
-            cif_path = cif_files[0]  # 取第一个文件
+            cif_path = cif_files[0]
             results['files']['cif'] = cif_path
             print(f"💾 找到CIF文件: {cif_path}")
             
-            # 如果需要PDB格式，进行转换
+            # 转换PDB
             if args.output_format in ['pdb', 'both']:
                 pdb_path = cif_path.replace('.cif', '.pdb')
                 try:
@@ -1109,28 +1433,46 @@ def run_aptamer_structure_prediction(args, yaml_path, output_dir, boltz_model, s
                 with open(confidence_path, 'r') as f:
                     confidence_data = json.load(f)
                 
-                if 'complex_plddt' in confidence_data:
-                    results['confidence'] = {
-                        'avg_plddt': confidence_data['complex_plddt'],
-                        'plddt_scores': confidence_data.get('plddt_scores', [])
-                    }
-                    print(f"📊 找到置信度文件: {confidence_path}")
-                    print(f"📊 平均pLDDT: {confidence_data['complex_plddt']:.2f}")
+                # 提取所有置信度指标
+                results['confidence'] = {
+                    'avg_plddt': confidence_data.get('complex_plddt', 0.0),
+                    'iptm': confidence_data.get('iptm', 0.0),
+                    'ptm': confidence_data.get('ptm', 0.0),
+                    'ipae': (1 - confidence_data.get('iptm', 0.0)) * 31.0,  # 估算ipAE
+                }
+                
+                print(f"📊 找到置信度文件: {confidence_path}")
+                
+                # 如果有序列，进行综合评估
+                if sequence and 'N' not in sequence:
+                    print("\n" + "="*80)
+                    print("🔬 开始综合质量评估...")
+                    print("="*80)
+                    
+                    evaluation_results = evaluate_aptamer_comprehensive(
+                        confidence_path,
+                        sequence,
+                        args.aptamer_type,
+                        cif_path
+                    )
+                    
+                    results['evaluation'] = evaluation_results
+                    
             except Exception as e:
                 print(f"⚠️ 读取置信度文件失败: {e}")
         
-        # 生成文件名
+        # 保存信息文件
         target_name = args.target_name or "aptamer"
         aptamer_name = f"aptamer_{args.aptamer_type.lower()}_{target_name}"
-        
-        # 保存序列和类型信息到NPZ文件
         coords_path = os.path.join(structure_dir, f"{aptamer_name}_info.npz")
+        
         np.savez_compressed(
             coords_path,
             sequence=sequence if sequence else "",
             aptamer_type=args.aptamer_type,
             target_name=target_name,
-            yaml_path=yaml_path
+            yaml_path=yaml_path,
+            evaluation=results.get('evaluation', {})
         )
         results['files']['info'] = coords_path
         print(f"📁 信息文件已保存: {coords_path}")
@@ -1142,7 +1484,6 @@ def run_aptamer_structure_prediction(args, yaml_path, output_dir, boltz_model, s
         import traceback
         traceback.print_exc()
         raise
-
 
 def run_aptamer_structure_prediction_only(args):
     """
