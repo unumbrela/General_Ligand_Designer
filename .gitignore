@@ -14,7 +14,7 @@
 *.onnx
 *.safetensors
 *.npz
-
+/outputs
 
 # data/
 # *.csv
